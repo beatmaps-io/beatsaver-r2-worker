@@ -1,0 +1,15 @@
+name = "beatsaver-r2-worker"
+main = "src/index.ts"
+compatibility_date = "2022-05-12"
+
+account_id = "fb3fcc51940265720aaa458d00251957"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "KVSTORE"
+id = "288f20c89a9c4305803db98d1de84581"
+
+[[r2_buckets]]
+binding = 'BUCKET'
+bucket_name = 'beatsaver'
+preview_bucket_name = 'beatsaver'
