@@ -8,7 +8,7 @@ const corsHeaders = {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    return handleRequest(request, env);
+    return handleRequest(request, env, ctx);
   },
 };
 
@@ -34,25 +34,40 @@ async function handleOptions(request: Request) {
   }
 }
 
-async function handleRequest(request: Request, env: Env) {
+async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) {
   const url = new URL(request.url);
   const key = url.pathname.slice(1);
 
   switch (request.method) {
     case "GET":
-      const object = await env.BUCKET.get(key);
-      const name = await env.KVSTORE.get(key);
-
-      if (!object) {
-        return new Response("Object Not Found", { status: 404 });
+      if (url.pathname === "/") {
+        return new Response("OK");
       }
 
-      let responseHeaders = !name ? corsHeaders : {
-        ...corsHeaders,
-        'Content-Disposition': 'attachment; filename="' + name + '"'
+      const cache = caches.default;
+      let response = await cache.match(request);
+
+      if (!response || !response.ok) {
+        const object = await env.BUCKET.get(key);
+        const name = await env.KVSTORE.get(key);
+
+        if (!object) {
+          return new Response("Object Not Found", {status: 404});
+        }
+
+        let responseHeaders = !name ? corsHeaders : {
+          ...corsHeaders,
+          'Content-Disposition': 'attachment; filename="' + name + '"',
+          'etag': object.httpEtag,
+          'cache-control': 'public, max-age=1800',
+          'last-modified': object.uploaded.toUTCString()
+        }
+
+        response = new Response(object.body, {headers: responseHeaders});
+        ctx.waitUntil(cache.put(request, response.clone()));
       }
 
-      return new Response(object.body, { headers: responseHeaders });
+      return response;
     case "OPTIONS":
       return handleOptions(request);
     default:

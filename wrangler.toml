@@ -8,8 +8,9 @@ workers_dev = true
 [[kv_namespaces]]
 binding = "KVSTORE"
 id = "288f20c89a9c4305803db98d1de84581"
+preview_id = "45b3749ed8f148988701b13b9321c1a3"
 
 [[r2_buckets]]
 binding = 'BUCKET'
 bucket_name = 'beatsaver'
-preview_bucket_name = 'beatsaver'
+preview_bucket_name = 'beatsaver-dev'
