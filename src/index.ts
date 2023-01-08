@@ -5,6 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET,OPTIONS',
   'Access-Control-Max-Age': '86400',
 };
+const brokerUrl = 'https://beatsaver.beatsaver.cloudflarepubsub.com';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -34,9 +35,34 @@ async function handleOptions(request: Request) {
   }
 }
 
+async function sentToMqtt(brokerKey: string, key: string, remote: string) {
+  let opts = {
+    headers: {
+      'Authorization': 'Bearer ' + brokerKey
+    },
+    method: 'POST',
+    body: JSON.stringify({
+      messages: [
+        {
+          topic: 'downloads',
+          payload: `{"hash": "${key}", "type": "HASH", "remote": "${remote}"}`,
+          contentType: 'application/json',
+          payloadFormatIndicator: 1
+        }
+      ],
+      options: {
+        qos: 0
+      }
+    })
+  };
+  await fetch(brokerUrl, opts);
+}
+
 async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) {
+  const ip = request.headers.get('cf-connecting-ip');
   const url = new URL(request.url);
   const key = url.pathname.slice(1);
+  console.log("Request for " + key);
 
   switch (request.method) {
     case "GET":
@@ -48,12 +74,15 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
       let response = await cache.match(request);
 
       if (!response || !response.ok) {
+        console.log("BUCKET.get");
         const object = await env.BUCKET.get(key);
+        console.log("KVSTORE.get");
         const name = await env.KVSTORE.get(key);
 
         if (!object) {
           return new Response("Object Not Found", {status: 404});
         }
+        console.log("Preparing response");
 
         let responseHeaders = !name ? corsHeaders : {
           ...corsHeaders,
@@ -66,6 +95,8 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
         response = new Response(object.body, {headers: responseHeaders});
         ctx.waitUntil(cache.put(request, response.clone()));
       }
+
+      ctx.waitUntil(sentToMqtt(env.BROKER_JWT, key.substr(0, key.indexOf('.')), ip));
 
       return response;
     case "OPTIONS":
