@@ -43,7 +43,7 @@ async function sentToMqtt(brokerKey: string, key: string, remote: string) {
     method: 'POST',
     body: JSON.stringify({
       properties: {},
-      routing_key: `download.hash.${key}`
+      routing_key: `download.hash.${key}`,
       payload: `{"hash": "${key}", "type": "HASH", "remote": "${remote}"}`,
       payload_encoding: 'string'
     })
