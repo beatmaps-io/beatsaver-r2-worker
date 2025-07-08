@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET,OPTIONS',
   'Access-Control-Max-Age': '86400',
 };
-const brokerUrl = 'https://beatsaver.beatsaver.cloudflarepubsub.com';
+const brokerUrl = 'https://mq.beatsaver.com/api/exchanges/%2f/beatmaps/publish';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -38,21 +38,14 @@ async function handleOptions(request: Request) {
 async function sentToMqtt(brokerKey: string, key: string, remote: string) {
   let opts = {
     headers: {
-      'Authorization': 'Bearer ' + brokerKey
+      'Authorization': 'Basic ' + brokerKey
     },
     method: 'POST',
     body: JSON.stringify({
-      messages: [
-        {
-          topic: 'downloads',
-          payload: `{"hash": "${key}", "type": "HASH", "remote": "${remote}"}`,
-          contentType: 'application/json',
-          payloadFormatIndicator: 1
-        }
-      ],
-      options: {
-        qos: 0
-      }
+      properties: {},
+      routing_key: `download.hash.${key}`
+      payload: `{"hash": "${key}", "type": "HASH", "remote": "${remote}"}`,
+      payload_encoding: 'string'
     })
   };
   await fetch(brokerUrl, opts);
@@ -74,9 +67,9 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
       let response = await cache.match(request);
 
       if (!response || !response.ok) {
-        console.log("BUCKET.get");
+//        console.log("BUCKET.get");
         const object = await env.BUCKET.get(key);
-        console.log("KVSTORE.get");
+//        console.log("KVSTORE.get");
         const name = await env.KVSTORE.get(key);
 
         if (!object) {
@@ -96,7 +89,7 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext) 
         ctx.waitUntil(cache.put(request, response.clone()));
       }
 
-      ctx.waitUntil(sentToMqtt(env.BROKER_JWT, key.substr(0, key.indexOf('.')), ip));
+      ctx.waitUntil(sentToMqtt(env.MQ_AUTH, key.substring(0, key.indexOf('.')), ip));
 
       return response;
     case "OPTIONS":
